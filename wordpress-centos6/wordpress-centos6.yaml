@@ -1,0 +1,130 @@
+---
+- hosts: c
+  become: yes
+  gather_facts: False
+  vars:
+    ansible_hostname: 192.168.33.25
+    mysql_root_password: rootroot
+
+  tasks: 
+
+  - name: Install EPEL
+    get_url: 
+      url: https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
+      dest: /tmp/epel-release-latest-6.noarch.rpm
+
+  - name: install repo
+    command: rpm -ivh /tmp/epel-release-latest-6.noarch.rpm creates=/etc/yum.repos.d/epel.repo
+
+  - name: install pip
+    yum: 
+       name: python-pip
+       state: present
+       
+  - name: yum update
+    yum: 
+      name: "*"
+      state: latest
+      update_cache: yes
+
+  - name: Install Multiple Pkg 
+    yum: 
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - httpd 
+      - mysql
+      - mysql-server
+      - php 
+      - php-common
+      - php-mysql
+      - php-gd 
+      - libselinux-python
+      - php-xml
+      - php-mbstring
+      - php-mcrypt 
+       
+
+    
+  - name: Install the Python MySQLB module
+    command: yum install pip MySQL-python -y
+  
+
+  - name: Service start httpd
+    service: 
+      name: "{{ item }}" 
+      state: started
+      enabled: true
+    with_items:
+      - httpd
+      - mysqld
+
+  - name: Download Wordpress
+    get_url: 
+      url: http://wordpress.org/latest.tar.gz
+      dest: /tmp/latest.tar.gz
+      
+
+  - name: Extract Wordpress
+    command: tar -xvzf /tmp/latest.tar.gz -C /var/www/html/
+
+  - name: Change root user password on first run
+    mysql_user: 
+      name: root 
+      host: "{{ item }}" 
+      password: "{{ mysql_root_password }}"
+      login_user: root
+      login_password: "{{ mysql_root_password }}"
+      check_implicit_admin: yes
+      priv: '*.*:ALL,GRANT'
+
+    with_items:
+      - "{{ ansible_hostname }}"
+      - 127.0.0.1
+      - ::1
+      - localhost
+
+  - name: Create a Databse wordpress
+    mysql_db:
+      login_user: root
+      login_password: rootroot
+      name: mydb1
+      state: present
+ 
+  - name: Creating a New user wordpress for WordPress Database
+    mysql_user:
+      login_user: root
+      login_password: rootroot
+      name: user
+      password: user1234
+      priv: '*.*:ALL,GRANT'
+      state: present
+
+  - name: Copy a template /home/ansible/wordpress-centos6/httpd.j2 to /etc/httpd/conf/httpd.conf
+    template: 
+      src: /home/ansible/wordpress-centos6/httpd.j2
+      dest: /etc/httpd/conf/httpd.conf
+  
+  
+  - name: Add ur ip in /etc/hosts file
+    lineinfile:
+      path: /etc/hosts
+      insertafter: EOF
+      line: 192.168.33.25 wordpress 
+
+
+  - name: copy /home/ansible/wordpress-centos6/wp-config.j2 to /var/www/html/wordpress/wp-config.php
+    copy:
+      src: /home/ansible/wordpress-centos6/wp-config.j2
+      dest: /var/www/html/wordpress/wp-config.php
+
+  - name: httpd service restart
+    service: 
+      name: httpd
+      state: restarted
+  
+  
+  
+
+
+   
