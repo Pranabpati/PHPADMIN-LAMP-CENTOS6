@@ -1,0 +1,1 @@
+https://www.tecmint.com/install-wordpress-apache-nginx-rhel-centos-fedora/
