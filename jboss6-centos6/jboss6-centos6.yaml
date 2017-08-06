@@ -1,0 +1,219 @@
+---
+- hosts: c
+  become: yes
+  gather_facts: False
+  tasks: 
+  
+  - name: Yum update
+    yum:
+      name: '*'
+      state: latest 
+  
+ # - name: Install libselinux-python
+ #   yum: 
+ #     name: libselinux-python
+ #     state: present
+
+ # - name: copy EPEL from Ansible Server to Node
+ #   copy: 
+ #     src: /home/ansible/software/epel-release-latest-6.noarch.rpm
+ #     dest: /tmp/epel-release-latest-6.noarch.rpm
+
+  #- name: install repo
+  #  yum: 
+  #    name: /tmp/epel-release-latest-6.noarch.rpm
+  #    state: present
+   
+  #- name: Install Repo  
+  #  command: rpm -ivh /tmp/epel-release-latest-6.noarch.rpm creates=/etc/yum.repos.d/epel.repo
+
+  - name: install pip
+    yum: 
+       name: python-pip
+       state: present
+       
+ # - name: yum update
+ #   yum: 
+ #     name: "*"
+ #     state: latest
+ #     update_cache: yes
+
+
+
+
+  - name: Copy Java-JDK  from Ansible server to Node
+    copy: 
+      src: /home/ansible/software/jdk-8u144-linux-x64.rpm 
+      dest: /opt/jdk-8u144-linux-x64.rpm
+      mode: 0775
+
+
+ # - name: Download jdk to /opt dir 
+ #   get_url:
+ #     url: http://download.oracle.com/otn-pub/java/jdk/8u144-b01/090f390dda5b47b9b721c7dfaa008135/jdk-8u144-linux-x64.rpm
+ #     dest: /opt/jdk-8u144-linux-x64.rpm
+  
+  - name: Create a dir in /usr/java  
+    file:
+      path: /usr/java/
+      state: directory
+
+
+
+
+  - name: Install jdk-8u144-linux-x64.rpm
+    yum:
+      name: /opt/jdk-8u144-linux-x64.rpm
+      state: present
+
+
+
+  - name: Copy Jboss-6-Fnal from Ansible Server to Node
+    copy: 
+      src: /home/ansible/software/jboss-as-distribution-6.0.0.Final.zip
+      dest: /usr/share/
+      mode: 0744   
+
+
+
+  
+  #- name: Download jboss-6-Final to /usr/share
+  #  get_url: 
+  #    url: https://excellmedia.dl.sourceforge.net/project/jboss/JBoss/JBoss-6.0.0.Final/jboss-as-distribution-6.0.0.Final.zip
+  
+  #    dest: /usr/share/
+  #    mode: 0774
+ 
+
+  - name: Unarchieve using first time
+    unarchive:
+      src: /usr/share/jboss-as-distribution-6.0.0.Final.zip
+      dest: /usr/share/
+      remote_src: yes
+
+ 
+# - name: Unzip jboss-as-distribution-6.0.0.Final.zip
+ #   command: unzip -q /usr/share/jboss-as-distribution-6.0.0.Final.zip
+
+  - name: Groupadd jboss
+    group:
+      name: jboss
+      state: present
+
+  - name: Useradd jboss 
+    user:
+      name: jboss
+      shell: /bin/bash
+      group: jboss
+      
+      
+
+  - name: Change owner & Group of /usr/share/jboss-6.0.0.Final/
+    file: 
+      path: /usr/share/jboss-6.0.0.Final/
+      owner: jboss 
+      group: jboss
+      recurse: yes
+      
+
+
+  - name: Set Java Path in ~.bash_profile
+    blockinfile:
+      path: ~/.bash_profile
+      insertafter: PATH=$PATH:$HOME/bin
+      #insertbefore: export PATH
+      content: |
+        JAVA_HOME=/usr/java/jdk1.8.0_144 
+        export JAVA_HOME  
+        PATH=$JAVA_HOME/bin:$PATH  
+        export PATH  
+        JBOSS_HOME=/usr/share/jboss-6.0.0.Final  
+        export JBOSS_HOME  
+
+  - name: Set Java Path in /etc/profile
+    blockinfile:
+      path: /etc/profile
+      #insertafter: unset i
+      insertbefore: unset -f pathmunge
+      content: |
+        JAVA_HOME=/usr/java/jdk1.8.0_144 
+        export JAVA_HOME  
+        PATH=$JAVA_HOME/bin:$PATH  
+        export PATH  
+        JBOSS_HOME=/usr/share/jboss-6.0.0.Final  
+        export JBOSS_HOME  
+
+#  - name: copy /usr/share/jboss-6.0.0.Final/bin/jboss_init_redhat.sh to /etc/init.d/jboss/
+#    copy: 
+#      src: /usr/share/jboss-6.0.0.Final/bin/jboss_init_redhat.sh
+#      dest: /etc/init.d/jboss
+
+  - name: Copy template jboss.j2 to /etc/init.d/jboss
+    template:
+      src: /home/ansible/jboss6-centos6/jboss.j2
+      dest: /etc/init.d/jboss
+      mode: 0755
+
+#  - name: chkconfig --add jboss
+#    command: sudo chkconfig --add jboss
+
+ 
+  - name: Enabling Jboss at boot time 
+    service: 
+      name: jboss
+      enabled: yes
+      state: started
+
+  - name: Changing Jboss Admin Password in /usr/share/jboss-6.0.0.Final/server/default/conf/props/jmx-console-users.properties
+    lineinfile:
+      path: /usr/share/jboss-6.0.0.Final/server/default/conf/props/jmx-console-users.properties
+      regexp: '^admin='
+      line: 'admin=password'
+ 
+# - name: chkconfig --level 234 jboss on  
+#    command: sudo chkconfig --level 234 jboss on 
+
+#  - name: Jboss Service Start
+#    command: sudo /etc/init.d/jboss start
+
+
+  - name: Replacing /usr/share/jboss-6.0.0.Final/common/deploy/jmx-console.war/WEB-INF/web.xml file with template web-xml.j2
+    template:
+      src: /home/ansible/jboss6-centos6/web-xml.j2 
+      dest: /usr/share/jboss-6.0.0.Final/common/deploy/jmx-console.war/WEB-INF/web.xml
+
+  - name: relacing "/usr/share/jboss-6.0.0.Final/common/deploy/jmx-console.war/WEB-INF/jboss-web.xml" with jboss-web-xml.j2
+    template: 
+      src:  /home/ansible/jboss6-centos6/jboss-web-xml.j2  
+      dest: /usr/share/jboss-6.0.0.Final/common/deploy/jmx-console.war/WEB-INF/jboss-web.xml
+  
+  - name: replacing /usr/share/jboss-6.0.0.Final/common/deploy/jbossws-console.war/WEB-INF/web.xml" with jbossws-web-xml.j2
+    template:
+      src:  /home/ansible/jboss6-centos6/jbossws-web-xml.j2
+      dest: /usr/share/jboss-6.0.0.Final/common/deploy/jbossws-console.war/WEB-INF/web.xml
+  
+  - name: replacing :/usr/share/jboss-6.0.0.Final/common/deploy/jbossws-console.war/WEB-INF
+    template: 
+      src: /home/ansible/jboss6-centos6/jbossws-web-xml1.j2
+      dest:  /usr/share/jboss-6.0.0.Final/common/deploy/jbossws-console.war/WEB-INF/jboss-web.xml
+
+  - name: Changing Default user name & Password in /usr/share/jboss-6.0.0.Final/server/default/conf/props/jbossws-roles.properties  File
+    lineinfile:
+      path: /usr/share/jboss-6.0.0.Final/server/default/conf/props/jbossws-roles.properties
+      regexp: '^kermit='
+      line: 'mywsuser=friend'
+
+  - name: Changing Default user name & Password in /usr/share/jboss-6.0.0.Final/server/default/conf/props/jbossws-users.properties File
+    lineinfile:
+      path: /usr/share/jboss-6.0.0.Final/server/default/conf/props/jbossws-users.properties
+      regexp: '^kermit='
+      line: 'mywsuser=MyWsPassword'
+
+  - name: Set Java Path in /etc/profile
+    lineinfile:
+      path: /usr/share/jboss-6.0.0.Final/bin/run.sh
+      insertafter: 'JAVA_OPTS="${JAVA_OPTS:--Dprogram.name=$PROGNAME}"'
+      line: 'JAVA_OPTS="$JAVA_OPTS -Xms128m -Xmx256m"'
+
+
+
